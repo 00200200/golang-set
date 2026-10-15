@@ -27,6 +27,7 @@ package mapset
 
 import (
 	"database/sql/driver"
+	"encoding"
 	"sync"
 )
 
@@ -34,6 +35,11 @@ type threadSafeSet[T comparable] struct {
 	sync.RWMutex
 	uss *threadUnsafeSet[T]
 }
+
+// Assert concrete type:threadSafeSet adheres to Set and binary encoding interfaces.
+var _ Set[string] = (*threadSafeSet[string])(nil)
+var _ encoding.BinaryMarshaler = (*threadSafeSet[string])(nil)
+var _ encoding.BinaryUnmarshaler = (*threadSafeSet[string])(nil)
 
 func newThreadSafeSetWithSize[T comparable](cardinality int) *threadSafeSet[T] {
 	return &threadSafeSet[T]{
@@ -366,5 +372,21 @@ func (t *threadSafeSet[T]) Scan(src any) error {
 	t.Lock()
 	err := t.uss.Scan(src)
 	t.Unlock()
+	return err
+}
+
+func (t *threadSafeSet[T]) MarshalBinary() ([]byte, error) {
+	t.RLock()
+	b, err := t.uss.MarshalBinary()
+	t.RUnlock()
+
+	return b, err
+}
+
+func (t *threadSafeSet[T]) UnmarshalBinary(p []byte) error {
+	t.Lock()
+	err := t.uss.UnmarshalBinary(p)
+	t.Unlock()
+
 	return err
 }

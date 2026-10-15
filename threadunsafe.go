@@ -26,7 +26,10 @@ SOFTWARE.
 package mapset
 
 import (
+	"bytes"
 	"database/sql/driver"
+	"encoding"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -34,8 +37,10 @@ import (
 
 type threadUnsafeSet[T comparable] map[T]struct{}
 
-// Assert concrete type:threadUnsafeSet adheres to Set interface.
+// Assert concrete type:threadUnsafeSet adheres to Set and binary encoding interfaces.
 var _ Set[string] = (*threadUnsafeSet[string])(nil)
+var _ encoding.BinaryMarshaler = threadUnsafeSet[string](nil)
+var _ encoding.BinaryUnmarshaler = (*threadUnsafeSet[string])(nil)
 
 func newThreadUnsafeSet[T comparable]() *threadUnsafeSet[T] {
 	t := make(threadUnsafeSet[T])
@@ -413,5 +418,31 @@ func (s *threadUnsafeSet[T]) Scan(src any) error {
 
 	s.Clear()
 	s.append(values...)
+	return nil
+}
+
+// MarshalBinary encodes the set as a binary slice using gob.
+func (s threadUnsafeSet[T]) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(s.ToSlice()); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary decodes a binary slice using gob into the set.
+func (s *threadUnsafeSet[T]) UnmarshalBinary(b []byte) error {
+	var i []T
+	dec := gob.NewDecoder(bytes.NewReader(b))
+	if err := dec.Decode(&i); err != nil {
+		return err
+	}
+	if *s == nil {
+		*s = make(threadUnsafeSet[T], len(i))
+	} else {
+		s.Clear()
+	}
+	s.append(i...)
 	return nil
 }

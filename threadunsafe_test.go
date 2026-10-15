@@ -26,8 +26,10 @@ SOFTWARE.
 package mapset
 
 import (
+	"bytes"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/gob"
 	"encoding/json"
 	"testing"
 )
@@ -241,4 +243,61 @@ func (t *testStruct) UnmarshalJSON(b []byte) error {
 	t.Set = NewThreadUnsafeSet(raw.Set...)
 
 	return nil
+}
+
+func TestThreadUnsafeSet_MarshalBinary(t *testing.T) {
+	expected := NewThreadUnsafeSet[int64](1, 2, 3)
+	actual := NewThreadUnsafeSet[int64]()
+
+	// test Marshal from Set method
+	b, err := expected.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	err = actual.UnmarshalBinary(b)
+	if err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	if !expected.Equal(actual) {
+		t.Errorf("Expected %v, got %v", expected, actual)
+	}
+
+	// test Marshal from gob package directly
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err = enc.Encode(expected)
+	if err != nil {
+		t.Fatalf("gob.Encode failed: %v", err)
+	}
+
+	actualGob := NewThreadUnsafeSet[int64]()
+	dec := gob.NewDecoder(&buf)
+	err = dec.Decode(actualGob)
+	if err != nil {
+		t.Fatalf("gob.Decode failed: %v", err)
+	}
+
+	if !expected.Equal(actualGob) {
+		t.Errorf("Expected %v, got %v", expected, actualGob)
+	}
+}
+
+func TestThreadUnsafeSet_BinaryRoundtrip_Empty(t *testing.T) {
+	expected := NewThreadUnsafeSet[string]()
+	b, err := expected.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	actual := NewThreadUnsafeSet[string]("initial")
+	err = actual.UnmarshalBinary(b)
+	if err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	if !expected.Equal(actual) {
+		t.Errorf("Expected empty set, got %v", actual)
+	}
 }

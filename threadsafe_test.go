@@ -26,8 +26,10 @@ SOFTWARE.
 package mapset
 
 import (
+	"bytes"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -686,6 +688,57 @@ func Test_MarshalJSON(t *testing.T) {
 
 	if !expected.Equal(actual) {
 		t.Errorf("Expected no difference, got: %v", expected.Difference(actual))
+	}
+}
+
+func Test_MarshalBinary(t *testing.T) {
+	expected := NewSet("a", "b", "c")
+
+	b, err := expected.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	actual := NewSet[string]()
+	err = actual.UnmarshalBinary(b)
+	if err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	if !expected.Equal(actual) {
+		t.Errorf("Expected %v, got %v", expected, actual)
+	}
+
+	// Test via gob encoder/decoder
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(expected); err != nil {
+		t.Fatalf("gob.Encode failed: %v", err)
+	}
+
+	actualGob := NewSet[string]()
+	if err := gob.NewDecoder(&buf).Decode(actualGob); err != nil {
+		t.Fatalf("gob.Decode failed: %v", err)
+	}
+
+	if !expected.Equal(actualGob) {
+		t.Errorf("Expected %v, got %v", expected, actualGob)
+	}
+}
+
+func Test_MarshalBinary_Empty(t *testing.T) {
+	expected := NewSet[int]()
+	b, err := expected.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	actual := NewSet[int](99, 100)
+	if err := actual.UnmarshalBinary(b); err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	if !expected.Equal(actual) {
+		t.Errorf("Expected empty set, got %v", actual)
 	}
 }
 

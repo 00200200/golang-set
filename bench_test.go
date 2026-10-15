@@ -402,3 +402,28 @@ func BenchmarkUnmarshalJSON(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkMarshalBinary(b *testing.B) {
+	for _, c := range buildBenchCases(1, 10, 100) {
+		s := buildRandomSet(c.n, c.safe)
+
+		b.Run(buildCaseName(c.n, c.safe), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_, _ = s.MarshalBinary()
+			}
+		})
+	}
+}
+
+func BenchmarkUnmarshalBinary(b *testing.B) {
+	for _, c := range buildBenchCases(1, 10, 100) {
+		s := buildRandomSet(c.n, c.safe)
+		bin, _ := s.MarshalBinary()
+
+		b.Run(buildCaseName(c.n, c.safe), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_ = s.UnmarshalBinary(bin)
+			}
+		})
+	}
+}
